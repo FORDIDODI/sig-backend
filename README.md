@@ -1,256 +1,203 @@
 # ELERA — Sistem Informasi Geografis Fasilitas Umum Kota Medan
+## Backend & Web (CodeIgniter 4)
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Platform-Web%20%7C%20Android-blue?style=flat-square" />
-  <img src="https://img.shields.io/badge/Backend-CodeIgniter%204-orange?style=flat-square" />
-  <img src="https://img.shields.io/badge/Database-PostgreSQL%2016-336791?style=flat-square" />
-  <img src="https://img.shields.io/badge/Android-Kotlin%20%2B%20Jetpack%20Compose-3DDC84?style=flat-square" />
-  <img src="https://img.shields.io/badge/Map-Leaflet.js%20%2B%20OpenStreetMap-7EBC6F?style=flat-square" />
-  <img src="https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square" />
-</p>
+![Platform](https://img.shields.io/badge/Platform-Web-blue?style=flat-square)
+![Backend](https://img.shields.io/badge/Framework-CodeIgniter%204-orange?style=flat-square)
+![Database](https://img.shields.io/badge/Database-PostgreSQL%2016-336791?style=flat-square)
+![PHP](https://img.shields.io/badge/PHP-8.1%2B-777BB4?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square)
 
-> Sistem informasi geografis berbasis **web dan Android** untuk memetakan fasilitas umum (puskesmas, pemadam kebakaran, taman kota) di Kota Medan, Sumatera Utara. Dilengkapi fitur navigasi rute, filter peta, dan manajemen data berbasis peran (admin/user).
+Repositori ini berisi kode backend REST API dan frontend web untuk sistem ELERA — aplikasi pemetaan fasilitas umum (puskesmas, pemadam kebakaran, taman kota) di Kota Medan berbasis CodeIgniter 4 dan PostgreSQL.
+
+Repositori Android terpisah: [ELERA Android](../SigFasilitas/)
 
 ---
 
 ## Daftar Isi
 
-- [Demo & Screenshot](#-demo--screenshot)
-- [Fitur](#-fitur)
-- [Arsitektur Sistem](#-arsitektur-sistem)
-- [Tech Stack](#-tech-stack)
-- [Struktur Proyek](#-struktur-proyek)
-- [Prasyarat](#-prasyarat)
-- [Instalasi Backend](#-instalasi-backend)
-- [Instalasi Android](#-instalasi-android)
-- [Konfigurasi Database](#-konfigurasi-database)
-- [API Endpoints](#-api-endpoints)
-- [Akun Default](#-akun-default)
-- [Kontribusi](#-kontribusi)
-- [Lisensi](#-lisensi)
-
----
-
-## Demo & Screenshot
-
-| Landing Page | Peta Interaktif | Android — User Screen |
-|:---:|:---:|:---:|
-| *(screenshot)* | *(screenshot)* | *(screenshot)* |
-
-| Android — Login | Admin — Tambah Data | Navigasi Rute |
-|:---:|:---:|:---:|
-| *(screenshot)* | *(screenshot)* | *(screenshot)* |
+- [Fitur](#fitur)
+- [Arsitektur](#arsitektur)
+- [Tech Stack](#tech-stack)
+- [Struktur Direktori](#struktur-direktori)
+- [Prasyarat](#prasyarat)
+- [Instalasi](#instalasi)
+- [Konfigurasi](#konfigurasi)
+- [Database](#database)
+- [API Endpoints](#api-endpoints)
+- [Tile Proxy](#tile-proxy)
+- [Troubleshooting](#troubleshooting)
+- [Lisensi](#lisensi)
 
 ---
 
 ## Fitur
 
-### Platform Web
-- **Peta interaktif** berbasis Leaflet.js dengan tile OpenStreetMap
-- **Marker berwarna** per jenis fasilitas (puskesmas, damkar, taman)
-- **Popup informasi** — nama, jenis, alamat, koordinat GPS
-- **Filter real-time** berdasarkan jenis fasilitas tanpa reload
-- **Auto-fit bounds** — zoom otomatis menyesuaikan data yang ditampilkan
-- **Dark mode** pada landing page
+**REST API**
+- Endpoint GET untuk mengambil seluruh data fasilitas
+- Filter fasilitas berdasarkan jenis via query parameter `?jenis=`
+- Endpoint GET untuk detail satu fasilitas berdasarkan ID
+- Endpoint POST untuk menambahkan fasilitas baru dengan validasi input
+- Endpoint POST untuk autentikasi pengguna dengan verifikasi bcrypt
+- Response JSON terstandarisasi dengan HTTP status code yang sesuai
+- CORS header global untuk akses lintas origin dari aplikasi Android
 
-### Aplikasi Android
-- **Autentikasi role-based** — tampilan berbeda untuk admin dan user biasa
-- **GPS real-time** menggunakan Fused Location Provider API
-- **Kalkulasi jarak** ke setiap fasilitas dengan formula Haversine (meter/km)
-- **Urutan otomatis** — fasilitas diurutkan dari yang terdekat
-- **Navigasi rute** full-screen via WebView menggunakan OSRM routing engine
-- **Tile proxy** — peta tetap tampil di emulator tanpa akses internet langsung
-- **UI Glassmorphism** dark mode dengan animasi GPS pulse
+**Frontend Web**
+- Landing page dengan desain dark mode
+- Peta interaktif menggunakan Leaflet.js dan tile OpenStreetMap
+- Marker berbeda warna per jenis fasilitas
+- Popup informasi nama, jenis, alamat, dan koordinat GPS saat marker diklik
+- Filter real-time berdasarkan jenis tanpa reload halaman
+- Auto-fit bounds — zoom peta menyesuaikan data yang ditampilkan
+- Sidebar daftar fasilitas yang terintegrasi dengan marker di peta
 
-### Backend REST API
-- Endpoint CRUD untuk data fasilitas umum
-- Autentikasi dengan verifikasi password bcrypt
-- Filter fasilitas berdasarkan jenis via query parameter
-- CORS header global untuk akses dari Android
-- Validasi input di level server
+**Tile Proxy**
+- File `public/tile-proxy.php` sebagai perantara tile OpenStreetMap
+- Digunakan oleh Android WebView yang tidak bisa akses tile server eksternal secara langsung
+- Cache header untuk mengurangi request berulang ke OSM
+
+**Halaman Navigasi**
+- `app/Views/navigate.php` untuk WebView Android
+- Render peta menggunakan canvas HTML5
+- Tile dimuat melalui tile proxy dan di-cache per zoom level
+- Kalkulasi rute menggunakan OSRM routing engine
+- Fallback garis lurus jika OSRM tidak tersedia
+- Marker lokasi asal dan tujuan dengan label
+- Gesture drag untuk pan dan tombol zoom
 
 ---
 
-## Arsitektur Sistem
+## Arsitektur
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    CLIENT LAYER                     │
-│                                                     │
-│   ┌──────────────────┐    ┌──────────────────────┐  │
-│   │   Web Browser    │    │    Android App       │  │
-│   │  Leaflet.js +    │    │  Kotlin + Jetpack    │  │
-│   │  OpenStreetMap   │    │  Compose + Retrofit  │  │
-│   └────────┬─────────┘    └──────────┬───────────┘  │
-└────────────│─────────────────────────│──────────────┘
-             │ HTTP GET                │ HTTP POST/GET
-             ▼                         ▼
-┌─────────────────────────────────────────────────────┐
-│                    SERVER LAYER                     │
-│                                                     │
-│   ┌──────────────────────────┐  ┌────────────────┐  │
-│   │      REST API            │  │  Tile Proxy    │  │
-│   │   CodeIgniter 4 + PHP    │  │ tile-proxy.php │  │
-│   │  /api/login              │  │ relay OSM tile │  │
-│   │  /api/fasilitas          │  └───────┬────────┘  │
-│   └────────────┬─────────────┘          │ fetch     │
-└────────────────│────────────────────────│───────────┘
-                 │ SQL query              │
-                 ▼                        ▼
-┌───────────────────────┐    ┌──────────────────────┐
-│   PostgreSQL 16       │    │   OpenStreetMap      │
-│   tabel: fasilitas    │    │   Tile server publik │
-│   tabel: users        │    └──────────────────────┘
-└───────────────────────┘
+Client (browser / Android WebView)
+        |
+        | HTTP request
+        v
+Apache (Laragon)
+        |
+        v
+CodeIgniter 4 Router  -->  CorsFilter (middleware)
+        |
+        +---> HomeController        --> Views (landing, map, navigate)
+        |
+        +---> Api/AuthController    --> UserModel    --> PostgreSQL
+        |
+        +---> Api/FasilitasController --> FasilitasModel --> PostgreSQL
+        |
+        +---> public/tile-proxy.php --> OpenStreetMap tile server
 ```
 
 ---
 
 ## Tech Stack
 
-### Backend
-| Teknologi | Versi | Kegunaan |
-|-----------|-------|----------|
-| PHP | 8.1+ | Bahasa pemrograman server |
-| CodeIgniter 4 | 4.6.x | Framework backend MVC |
-| PostgreSQL | 16 | Database relasional |
-| Apache | 2.4 | Web server (via Laragon) |
-
-### Frontend Web
-| Teknologi | Versi | Kegunaan |
-|-----------|-------|----------|
-| Leaflet.js | 1.9.4 | Library peta interaktif |
-| OpenStreetMap | — | Sumber tile peta (gratis) |
-| OSRM | — | Routing engine navigasi |
-| HTML5 / CSS3 / JS | — | UI dan logika client-side |
-
-### Android
-| Teknologi | Versi | Kegunaan |
-|-----------|-------|----------|
-| Kotlin | — | Bahasa pemrograman Android |
-| Jetpack Compose | — | Toolkit UI deklaratif |
-| Retrofit 2 | 2.11.0 | HTTP client untuk API |
-| OkHttp | 4.12.0 | Interceptor & logging |
-| Fused Location Provider | — | GPS & lokasi akurat |
-| Google Play Services Location | 21.3.0 | Provider lokasi |
-| Kotlin Coroutines | 1.8.1 | Pemrograman asinkronus |
+| Komponen | Teknologi | Versi |
+|----------|-----------|-------|
+| Framework backend | CodeIgniter 4 | 4.6.x |
+| Bahasa server | PHP | 8.1+ |
+| Database | PostgreSQL | 16 |
+| Web server | Apache | 2.4 (via Laragon) |
+| Library peta | Leaflet.js | 1.9.4 |
+| Sumber tile peta | OpenStreetMap | — |
+| Routing navigasi | OSRM (Project OSRM) | — |
+| Dependency manager | Composer | 2.x |
 
 ---
 
-## Struktur Proyek
+## Struktur Direktori
 
 ```
-sig-backend/                        ← Proyek CodeIgniter 4
+sig-backend/
 ├── app/
 │   ├── Config/
-│   │   ├── Filters.php             ← Registrasi CORS filter global
-│   │   └── Routes.php              ← Definisi semua route web & API
+│   │   ├── Filters.php             # Registrasi CorsFilter secara global
+│   │   └── Routes.php              # Definisi semua route web dan API
 │   ├── Controllers/
 │   │   ├── Api/
-│   │   │   ├── AuthController.php  ← POST /api/login
-│   │   │   └── FasilitasController.php ← CRUD /api/fasilitas
-│   │   └── HomeController.php      ← Halaman web + navigate()
+│   │   │   ├── AuthController.php  # POST /api/login
+│   │   │   └── FasilitasController.php  # GET dan POST /api/fasilitas
+│   │   └── HomeController.php      # Halaman web dan redirect navigate
 │   ├── Filters/
-│   │   └── CorsFilter.php          ← Middleware CORS
+│   │   └── CorsFilter.php          # Middleware CORS untuk Android
 │   ├── Models/
-│   │   ├── FasilitasModel.php      ← Validasi & query fasilitas
-│   │   └── UserModel.php           ← Autentikasi bcrypt
+│   │   ├── FasilitasModel.php      # Validasi input dan query builder
+│   │   └── UserModel.php           # Verifikasi password bcrypt
 │   ├── Database/
-│   │   ├── Migrations/             ← Migration tabel
-│   │   └── Seeds/                  ← Seeder data dummy
+│   │   ├── Migrations/
+│   │   │   ├── CreateFasilitasTable.php
+│   │   │   └── CreateUsersTable.php
+│   │   └── Seeds/
+│   │       ├── FasilitasSeeder.php # Data dummy fasilitas
+│   │       └── UsersSeeder.php     # Akun admin dan user default
 │   └── Views/
-│       ├── landing.php             ← Landing page dark mode
-│       ├── map.php                 ← Peta Leaflet.js interaktif
-│       └── navigate.php            ← Navigasi rute (WebView Android)
+│       ├── landing.php             # Halaman landing page
+│       ├── map.php                 # Peta Leaflet.js interaktif
+│       └── navigate.php           # Halaman navigasi untuk Android WebView
 ├── public/
-│   └── tile-proxy.php              ← Proxy tile OSM untuk Android
-└── .env                            ← Konfigurasi database & app
-
-SigFasilitas/                       ← Proyek Android Studio
-└── app/src/main/java/com/example/sigfasilitas/
-    ├── MainActivity.kt             ← Entry point + LoginScreen + AdminScreen
-    ├── ui/
-    │   ├── screen/
-    │   │   └── UserScreen.kt       ← GPS banner, jarak, navigasi
-    │   └── viewmodel/
-    │       └── MainViewModel.kt    ← MVVM, StateFlow, authState
-    ├── data/
-    │   ├── model/
-    │   │   └── Models.kt           ← Data class: Fasilitas, User, dll
-    │   ├── remote/
-    │   │   ├── FasilitasApiService.kt ← Retrofit interface
-    │   │   └── RetrofitClient.kt   ← Singleton Retrofit + OkHttp
-    │   └── repository/
-    │       └── FasilitasRepository.kt ← ApiResult + error handling
-    └── util/
-        └── LocationHelper.kt       ← Fused Location suspend function
+│   ├── index.php                   # Entry point CI4
+│   └── tile-proxy.php              # Proxy tile OSM untuk Android WebView
+├── .env                            # Konfigurasi lokal (tidak di-commit)
+├── .env.example                    # Template konfigurasi
+└── composer.json
 ```
 
 ---
 
 ## Prasyarat
 
-### Backend
-- [Laragon](https://laragon.org/) (Apache + PHP 8.1)
-- [PostgreSQL 16](https://www.postgresql.org/download/) + pgAdmin 4
+- [Laragon](https://laragon.org/) versi Full (Apache + PHP 8.1+)
+- [PostgreSQL 16](https://www.postgresql.org/download/windows/) + pgAdmin 4
 - [Composer](https://getcomposer.org/)
-- PHP extensions aktif: `pdo_pgsql`, `pgsql`
-
-### Android
-- [Android Studio](https://developer.android.com/studio) Giraffe ke atas
-- Android SDK API level 26 (min) — 36 (target)
-- Google Play Services (untuk Fused Location)
-- Emulator Android atau device fisik
+- PHP extensions yang harus aktif:
+  - `pdo_pgsql`
+  - `pgsql`
+  - `intl`
+  - `mbstring`
 
 ---
 
-## Instalasi Backend
+## Instalasi
 
-### 1. Clone dan setup
+### 1. Clone repositori
 
 ```bash
 cd C:\laragon\www
-git clone <repo-url> sig-backend
+git clone <url-repositori> sig-backend
 cd sig-backend
+```
+
+### 2. Install dependensi
+
+```bash
 composer install
 ```
 
-### 2. Konfigurasi `.env`
+### 3. Salin file konfigurasi
 
-Salin file `.env.example` menjadi `.env`, lalu sesuaikan:
-
-```env
-app.baseURL = 'http://localhost/sig-backend/public/'
-
-database.default.hostname = localhost
-database.default.database = sig_fasilitas
-database.default.username = postgres
-database.default.password = your_password_here
-database.default.DBDriver = Postgre
-database.default.DBPrefix =
-database.default.port     = 5432
-database.default.charset  = utf8
-database.default.DBCollat =
+```bash
+cp .env.example .env
 ```
 
-### 3. Aktifkan ekstensi PHP PostgreSQL
+### 4. Aktifkan ekstensi PHP PostgreSQL
 
-Buka `php.ini` di Laragon, uncomment baris berikut:
+Buka Laragon, klik menu **PHP** > **php.ini**, lalu cari dan uncomment:
 
 ```ini
 extension=pdo_pgsql
 extension=pgsql
 ```
 
-Restart Apache di Laragon.
+Simpan, lalu klik **Stop All** dan **Start All** di Laragon.
 
-### 4. Buat database di pgAdmin
+### 5. Buat database
+
+Buka pgAdmin, hubungkan ke server PostgreSQL lokal, lalu jalankan:
 
 ```sql
 CREATE DATABASE sig_fasilitas;
 ```
 
-### 5. Jalankan migration dan seeder
+### 6. Jalankan migration dan seeder
 
 ```bash
 php spark migrate
@@ -258,87 +205,78 @@ php spark db:seed FasilitasSeeder
 php spark db:seed UsersSeeder
 ```
 
-### 6. Test API
+### 7. Verifikasi instalasi
 
-Buka browser:
+Buka browser dan akses:
 
 ```
 http://localhost/sig-backend/public/api/fasilitas
 ```
 
-Response JSON berhasil → backend siap
+Jika muncul response JSON dengan data fasilitas, instalasi berhasil.
 
 ---
 
-## Instalasi Android
+## Konfigurasi
 
-### 1. Buka proyek di Android Studio
+Edit file `.env` sesuai dengan konfigurasi lokal:
 
-File → Open → pilih folder `SigFasilitas/`
+```env
+# URL aplikasi
+app.baseURL = 'http://localhost/sig-backend/public/'
+app.forceGlobalSecureRequests = false
 
-### 2. Pastikan `BASE_URL` sesuai
+# Database PostgreSQL
+database.default.hostname = localhost
+database.default.database = sig_fasilitas
+database.default.username = postgres
+database.default.password = ganti_dengan_password_anda
+database.default.DBDriver = Postgre
+database.default.DBPrefix =
+database.default.port     = 5432
+database.default.charset  = utf8
+database.default.DBCollat =
 
-Di `app/build.gradle.kts`:
-
-```kotlin
-// Untuk emulator (default)
-buildConfigField("String", "BASE_URL", "\"http://10.0.2.2/sig-backend/public/\"")
-
-// Untuk device fisik (sesuaikan IP komputer di jaringan yang sama)
-// buildConfigField("String", "BASE_URL", "\"http://192.168.x.x/sig-backend/public/\"")
+# Mode aplikasi (development / production)
+CI_ENVIRONMENT = development
 ```
 
-### 3. Set lokasi GPS emulator
-
-Di emulator Android Studio:
-1. Klik ikon `...` (Extended Controls)
-2. Pilih **Location**
-3. Set koordinat Kota Medan:
-   - Latitude: `3.5952`
-   - Longitude: `98.6722`
-4. Klik **Set Location**
-
-### 4. Build dan run
-
-Klik **Run ▶** atau tekan `Shift+F10`
+> Perhatian: PostgreSQL tidak mendukung charset `utf8mb4`. Pastikan nilai `charset` adalah `utf8` dan `DBCollat` dikosongkan.
 
 ---
 
-## Konfigurasi Database
+## Database
 
 ### Struktur tabel
 
 ```sql
--- Tabel fasilitas
 CREATE TABLE fasilitas (
     id        SERIAL PRIMARY KEY,
     nama      VARCHAR(100)  NOT NULL,
-    jenis     VARCHAR(20)   NOT NULL CHECK (jenis IN ('puskesmas','damkar','taman')),
+    jenis     VARCHAR(20)   NOT NULL CHECK (jenis IN ('puskesmas', 'damkar', 'taman')),
     alamat    TEXT,
     latitude  DECIMAL(10,8) NOT NULL,
     longitude DECIMAL(11,8) NOT NULL
 );
 
--- Tabel users
 CREATE TABLE users (
     id           SERIAL PRIMARY KEY,
     username     VARCHAR(50)  NOT NULL UNIQUE,
     password     VARCHAR(255) NOT NULL,
-    role         VARCHAR(10)  NOT NULL DEFAULT 'user' CHECK (role IN ('admin','user')),
+    role         VARCHAR(10)  NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
     nama_lengkap VARCHAR(100),
     created_at   TIMESTAMP
 );
 ```
 
-### Contoh insert data fasilitas
+### Akun default (dari seeder)
 
-```sql
-INSERT INTO fasilitas (nama, jenis, alamat, latitude, longitude) VALUES
-('Puskesmas Padang Bulan', 'puskesmas', 'Medan, Sumatera Utara', 3.5607826995411918, 98.66211781005646),
-('Puskesmas Polonia Medan', 'puskesmas', 'Medan, Sumatera Utara', 3.569433629119114, 98.66802482354746),
-('Pemadam Kebakaran Kota Medan', 'damkar', 'Jl. Sudirman, Medan', 3.5923, 98.6634),
-('Taman Ahmad Yani', 'taman', 'Jl. Ahmad Yani, Medan', 3.5812, 98.6712);
-```
+| Username | Password | Role |
+|----------|----------|------|
+| admin | admin123 | admin |
+| user1 | user123 | user |
+
+Password disimpan sebagai hash bcrypt. Ganti sebelum deploy ke production.
 
 ---
 
@@ -346,35 +284,19 @@ INSERT INTO fasilitas (nama, jenis, alamat, latitude, longitude) VALUES
 
 Base URL: `http://localhost/sig-backend/public`
 
-| Method | Endpoint | Body | Deskripsi |
-|--------|----------|------|-----------|
-| `POST` | `/api/login` | `{"username":"...","password":"..."}` | Autentikasi, return role |
-| `GET` | `/api/fasilitas` | — | Semua fasilitas |
-| `GET` | `/api/fasilitas?jenis=puskesmas` | — | Filter per jenis |
-| `GET` | `/api/fasilitas/{id}` | — | Detail satu fasilitas |
-| `POST` | `/api/fasilitas` | `{"nama":"...","jenis":"...","alamat":"...","latitude":0.0,"longitude":0.0}` | Tambah fasilitas baru |
+### Autentikasi
 
-### Contoh response GET /api/fasilitas
+```
+POST /api/login
+Content-Type: application/json
 
-```json
 {
-  "status": 200,
-  "message": "Data fasilitas berhasil diambil.",
-  "total": 4,
-  "data": [
-    {
-      "id": "1",
-      "nama": "Puskesmas Padang Bulan",
-      "jenis": "puskesmas",
-      "alamat": "Medan, Sumatera Utara",
-      "latitude": "3.56078270",
-      "longitude": "98.66211781"
-    }
-  ]
+  "username": "admin",
+  "password": "admin123"
 }
 ```
 
-### Contoh response POST /api/login (berhasil)
+Response berhasil (200):
 
 ```json
 {
@@ -389,84 +311,111 @@ Base URL: `http://localhost/sig-backend/public`
 }
 ```
 
+Response gagal (401):
+
+```json
+{
+  "status": 401,
+  "message": "Username atau password salah."
+}
+```
+
+### Fasilitas
+
+**GET semua fasilitas**
+```
+GET /api/fasilitas
+```
+
+**GET dengan filter jenis**
+```
+GET /api/fasilitas?jenis=puskesmas
+GET /api/fasilitas?jenis=damkar
+GET /api/fasilitas?jenis=taman
+```
+
+**GET detail satu fasilitas**
+```
+GET /api/fasilitas/{id}
+```
+
+**POST tambah fasilitas**
+```
+POST /api/fasilitas
+Content-Type: application/json
+
+{
+  "nama": "Puskesmas Contoh",
+  "jenis": "puskesmas",
+  "alamat": "Jl. Contoh No. 1, Medan",
+  "latitude": 3.5952,
+  "longitude": 98.6722
+}
+```
+
+Response sukses (201):
+
+```json
+{
+  "status": 201,
+  "message": "Data fasilitas berhasil ditambahkan.",
+  "data": {
+    "id": 25
+  }
+}
+```
+
+Response validasi gagal (400):
+
+```json
+{
+  "status": 400,
+  "message": "Validasi gagal.",
+  "errors": {
+    "nama": "Nama fasilitas wajib diisi.",
+    "jenis": "Jenis harus salah satu dari: puskesmas, damkar, taman."
+  }
+}
+```
+
 ---
 
-## Akun Default
+## Tile Proxy
 
-| Username | Password | Role | Akses |
-|----------|----------|------|-------|
-| `admin` | `admin123` | admin | Lihat daftar + tambah fasilitas |
-| `user1` | `user123` | user | Lihat peta + jarak + navigasi rute |
+Android WebView tidak dapat mengakses tile server OpenStreetMap secara langsung karena emulator tidak punya koneksi ke internet publik. File `public/tile-proxy.php` menjadi perantara.
 
-> **Ganti password default sebelum deploy ke production.**
-
----
-
-## Cara Kerja Tile Proxy
-
-Emulator Android tidak bisa mengakses server tile OSM (`tile.openstreetmap.org`) secara langsung dari WebView. Solusi yang digunakan:
+**Cara kerja:**
 
 ```
 Android WebView
-    → request tile ke http://10.0.2.2/sig-backend/public/tile-proxy.php?z=14&x=...&y=...
-    → PHP fetch tile dari OSM (server punya akses internet)
-    → PHP return PNG ke WebView
-    → WebView render peta
+  --> GET http://10.0.2.2/sig-backend/public/tile-proxy.php?z=14&x=12928&y=8118
+      --> PHP fetch https://a.tile.openstreetmap.org/14/12928/8118.png
+      --> PHP return image/png ke WebView
 ```
 
-File `public/tile-proxy.php` harus ada dan dapat diakses. Test di browser:
+**Verifikasi tile proxy berjalan:**
 
 ```
 http://localhost/sig-backend/public/tile-proxy.php?z=14&x=12928&y=8118
 ```
 
-Harus muncul gambar potongan peta.
+Harus menampilkan gambar potongan peta (bukan error atau halaman kosong).
 
 ---
 
 ## Troubleshooting
 
-### Backend
-
 | Error | Penyebab | Solusi |
 |-------|----------|--------|
-| `invalid value for parameter "client_encoding": "utf8mb4"` | Charset MySQL di config PostgreSQL | Ubah `charset=utf8` dan kosongkan `DBCollat` di `.env` |
-| `Unable to connect to the database` | PostgreSQL tidak berjalan / password salah | Pastikan service PostgreSQL aktif dan cek kredensial |
-| `extension=pdo_pgsql not loaded` | Ekstensi PHP belum diaktifkan | Uncomment `extension=pdo_pgsql` di `php.ini`, restart Apache |
-
-### Android
-
-| Error | Penyebab | Solusi |
-|-------|----------|--------|
-| `Connection refused` ke API | `BASE_URL` masih pakai `localhost` | Ganti ke `10.0.2.2` untuk emulator |
-| Peta blank / putih di WebView | Tile tidak bisa diakses | Pastikan `tile-proxy.php` ada di folder `public/` dan bisa diakses |
-| GPS tidak dapat koordinat | Izin lokasi ditolak / GPS emulator tidak diset | Set lokasi di Extended Controls emulator |
-| Build error `@Composable invocation` | `remember {}` di dalam `LazyListScope` | Pindahkan ke level fungsi `@Composable` menggunakan `derivedStateOf` |
-
----
-
-## Kontribusi
-
-Pull request sangat diterima. Untuk perubahan besar, buka issue terlebih dahulu untuk mendiskusikan perubahan yang diinginkan.
-
-1. Fork repositori
-2. Buat branch fitur: `git checkout -b feature/nama-fitur`
-3. Commit perubahan: `git commit -m 'feat: tambah fitur X'`
-4. Push ke branch: `git push origin feature/nama-fitur`
-5. Buat Pull Request
+| `invalid value for parameter "client_encoding": "utf8mb4"` | Nilai charset salah untuk PostgreSQL | Ubah `charset=utf8` dan kosongkan `DBCollat` di `.env` |
+| `Unable to connect to the database` | PostgreSQL tidak berjalan atau kredensial salah | Pastikan service PostgreSQL aktif, cek username dan password |
+| `Call to undefined function pg_connect()` | Ekstensi pgsql belum aktif | Uncomment `extension=pdo_pgsql` dan `extension=pgsql` di `php.ini`, restart Apache |
+| Tile proxy mengembalikan error 502 | Server tidak bisa fetch dari OSM | Pastikan komputer punya koneksi internet |
+| Seeder gagal dengan error charset | Konfigurasi database belum diperbarui | Jalankan ulang setelah `.env` diperbaiki |
+| Route tidak ditemukan (404) | `.htaccess` tidak terbaca | Pastikan `mod_rewrite` aktif di Apache |
 
 ---
 
 ## Lisensi
 
-Proyek ini menggunakan lisensi [MIT](LICENSE).
-
----
-
-## Tim Pengembang
-
-> Proyek praktikum mata kuliah Sistem Informasi Geografis
-
----
-
-*Dibuat dengan marah menggunakan CodeIgniter 4, Kotlin, dan Leaflet.js*
+MIT License. Lihat file [LICENSE](LICENSE) untuk detail.
