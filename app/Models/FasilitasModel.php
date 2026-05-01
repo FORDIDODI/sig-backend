@@ -11,16 +11,21 @@ class FasilitasModel extends Model
     protected $useAutoIncrement = true;
     protected $returnType       = 'array';
     protected $useSoftDeletes   = false;
+    protected $useTimestamps    = false;
 
     protected $allowedFields = [
         'nama',
         'jenis',
         'alamat',
+        'kecamatan_id',
         'latitude',
         'longitude',
+        'deskripsi',
+        'jam_operasional',
+        'telepon',
+        'foto_url',
+        'created_at',
     ];
-
-    protected $useTimestamps = false;
 
     protected $validationRules = [
         'nama'      => 'required|min_length[3]|max_length[100]',
@@ -53,14 +58,54 @@ class FasilitasModel extends Model
     protected $skipValidation = false;
 
     /**
-     * Ambil semua fasilitas, bisa filter berdasarkan jenis
+     * Ambil semua fasilitas dengan JOIN kecamatan.
+     * Support filter jenis dan/atau kecamatan_id.
      */
-    public function getFasilitas(?string $jenis = null): array
+    public function getFasilitas(?string $jenis = null, ?int $kecamatanId = null): array
     {
+        $builder = $this->db->table('fasilitas f')
+            ->select('f.*, k.nama AS nama_kecamatan')
+            ->join('kecamatan k', 'k.id = f.kecamatan_id', 'left');
+
         if ($jenis !== null && in_array($jenis, ['puskesmas', 'damkar', 'taman'])) {
-            return $this->where('jenis', $jenis)->findAll();
+            $builder->where('f.jenis', $jenis);
         }
 
-        return $this->findAll();
+        if ($kecamatanId !== null) {
+            $builder->where('f.kecamatan_id', $kecamatanId);
+        }
+
+        $builder->orderBy('f.nama', 'ASC');
+
+        return $builder->get()->getResultArray();
+    }
+
+    /**
+     * Ambil detail satu fasilitas dengan nama kecamatan.
+     */
+    public function getFasilitasDetail(int $id): ?array
+    {
+        $result = $this->db->table('fasilitas f')
+            ->select('f.*, k.nama AS nama_kecamatan')
+            ->join('kecamatan k', 'k.id = f.kecamatan_id', 'left')
+            ->where('f.id', $id)
+            ->get()
+            ->getRowArray();
+
+        return $result ?: null;
+    }
+
+    /**
+     * Ambil fasilitas berdasarkan kecamatan_id
+     */
+    public function getByKecamatan(int $kecamatanId): array
+    {
+        return $this->db->table('fasilitas f')
+            ->select('f.*, k.nama AS nama_kecamatan')
+            ->join('kecamatan k', 'k.id = f.kecamatan_id', 'left')
+            ->where('f.kecamatan_id', $kecamatanId)
+            ->orderBy('f.nama', 'ASC')
+            ->get()
+            ->getResultArray();
     }
 }
